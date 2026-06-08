@@ -72,9 +72,13 @@ USER_NAME=${USER}
 
 * ins_frpc_s : install frpc binary and configuration files and its client service 安装frp的客户端的所有文件
 
+* ins_frpc_user_s : install frpc binary and configuration files and its client user-level systemd service 安装frp客户端并以用户级 systemd 服务运行
+
 * ins_frps_s : install frpc binary and configuration files and its server service 安装frp的服务端的所有文件
 
 * unins_frpc_s : delete frps binary and configuration files and its client service 删除frp的客户端的所有文件
+
+* unins_frpc_user_s : delete frps binary and configuration files and its client user-level systemd service 删除用户级 systemd 客户端服务及相关文件
 
 * unins_frps_s : delete frps binary and configuration files and its  server service 删除frp的服务端的所有文件
 
@@ -131,7 +135,13 @@ Restart frp client service
 重启客户端服务
 ```
 # 这里的${USER}代表你的Linux当前登录的用户名
+systectl_user_cmd() { echo "systemctl --user start/stop/restart/status frpc_${USER}"; }
+# For system (system-wide) service use sudo:
 sudo systemctl start/stop/restart/status frpc_${USER}
+
+# For user-level systemd service (no sudo):
+# Example: enable and start the user service
+# systemctl --user enable --now frpc_${USER}.service
 ```
 
 Restart frp server service
@@ -154,6 +164,67 @@ Restart frp server service
 ```
 service frps start/stop/restart/status
 ```
+
+**Init.d scripts usage**
+
+The repository includes two SysV-style init scripts:
+
+- `frpc_initd.sh` — frp client init.d script
+- `frps_initd.sh` — frp server init.d script
+
+These are traditional init.d scripts. Typical usage to install and manage them:
+
+1. Make the script executable and copy to `/etc/init.d` (requires sudo):
+
+```bash
+chmod +x frpc_initd.sh
+chmod +x frps_initd.sh
+sudo cp frpc_initd.sh /etc/init.d/frpc
+sudo cp frps_initd.sh /etc/init.d/frps
+```
+
+2. Register and start the service
+
+- Debian/Ubuntu (sysv-compat):
+
+```bash
+sudo update-rc.d frpc defaults
+sudo update-rc.d frps defaults
+sudo service frpc start
+sudo service frps start
+sudo service frpc status
+sudo service frps status
+```
+
+- RHEL/CentOS (chkconfig):
+
+```bash
+sudo chkconfig --add frpc
+sudo chkconfig --add frps
+sudo service frpc start
+sudo service frps start
+```
+
+3. Uninstall / remove
+
+```bash
+# Debian/Ubuntu
+sudo update-rc.d -f frpc remove
+sudo update-rc.d -f frps remove
+sudo rm -f /etc/init.d/frpc /etc/init.d/frps
+
+# RHEL/CentOS
+sudo chkconfig --del frpc
+sudo chkconfig --del frps
+sudo rm -f /etc/init.d/frpc /etc/init.d/frps
+```
+
+4. Notes and gotchas
+
+- The init scripts expect the frp config files at `/etc/frp/frpc.ini` (client) and `/etc/frp/frps.ini` (server) by default — confirm paths or edit the script to match your config filenames.
+- The scripts use a pidfile and start the daemon via `su -c` (they assume root). Ensure `frpc`/`frps` are installed (usually `/usr/local/bin/frpc` and `/usr/local/bin/frps`).
+- On modern systemd-based distributions it's recommended to use a systemd unit instead; if you prefer that, use `systemctl` units or the user-level units described earlier in this README.
+
 
 
 `

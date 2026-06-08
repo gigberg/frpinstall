@@ -201,6 +201,67 @@ uninstall_frpc_initd_service() {
     sudo rm -rf /etc/init.d/${FRPC}
 }
 
+# Install systemd user service (per-user, no sudo required for unit file)
+install_frpc_user_systemd_service() {
+    echo 'Installing frp client user-level systemd service'
+    mkdir -p "$HOME/.config/systemd/user"
+    cat > "$HOME/.config/systemd/user/${FRPC}.service" <<EOF
+[Unit]
+Description=FRP Client Daemon (per-user)
+After=network.target network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/frpc -c /etc/frp/${FRPCCONF}
+Restart=on-failure
+RestartSec=5
+WorkingDirectory=%h
+
+[Install]
+WantedBy=default.target
+EOF
+    systemctl --user daemon-reload
+    systemctl --user enable --now ${FRPC}.service
+    systemctl --user status ${FRPC}.service || true
+}
+
+uninstall_frpc_user_systemd_service() {
+    systemctl --user stop ${FRPC}.service || true
+    systemctl --user disable ${FRPC}.service || true
+    rm -f "$HOME/.config/systemd/user/${FRPC}.service"
+    systemctl --user daemon-reload
+}
+
+install_frps_user_systemd_service() {
+    echo 'Installing frp server user-level systemd service'
+    mkdir -p "$HOME/.config/systemd/user"
+    cat > "$HOME/.config/systemd/user/${FRPS}.service" <<EOF
+[Unit]
+Description=FRP Server Daemon (per-user)
+After=network.target network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/frps -c /etc/frp/${FRPSCONF}
+Restart=on-failure
+RestartSec=30
+WorkingDirectory=%h
+
+[Install]
+WantedBy=default.target
+EOF
+    systemctl --user daemon-reload
+    systemctl --user enable --now ${FRPS}.service
+    systemctl --user status ${FRPS}.service || true
+}
+
+uninstall_frps_user_systemd_service() {
+    systemctl --user stop ${FRPS}.service || true
+    systemctl --user disable ${FRPS}.service || true
+    rm -f "$HOME/.config/systemd/user/${FRPS}.service"
+    systemctl --user daemon-reload
+}
+
 TARFILENAME=$(basename -- "$FRPURL")
 TARDIR="${TARFILENAME%.tar.gz}"
 download_frp_64() {
@@ -308,9 +369,17 @@ case "$1" in
         install_frp
         install_frpc_service
             ;;
+    ins_frpc_user_s)
+        install_frp
+        install_frpc_user_systemd_service
+            ;;
     unins_frpc_s)
         uninstall_frp
         uninstall_frpc_service
+        ;;
+    unins_frpc_user_s)
+        uninstall_frp
+        uninstall_frpc_user_systemd_service
         ;;
     ins_frps_s)
         install_frp
@@ -339,12 +408,14 @@ case "$1" in
         uninstall_frps_service
             ;;
     *)
-    echo "Usage: $0 {ins_frp|ins_frpc_s|ins_frps_s|unins_frpc_s|unins_frps_s}"
+    echo "Usage: $0 {ins_frp|ins_frpc_s|ins_frpc_user_s|ins_frps_s|unins_frpc_s|unins_frpc_user_s|unins_frps_s}"
     echo "      support installing frp service for systemd(tested) and initd(not tested)"
     echo "      ins_frp : install frp binary and configuration files"
     echo "      ins_frpc_s : install frp binary and configuration files and client service"
+    echo "      ins_frpc_user_s : install frp binary and configuration files and client user-level systemd service"
     echo "      ins_frps_s : install frp binary and configuration files and server service"
     echo "      unins_frpc_s : delete frp binary and configuration files and client service"
+    echo "      unins_frpc_user_s : delete frp binary and configuration files and client user-level systemd service"
     echo "      unins_frps_s : delete frp binary and configuration files and server service"
 esac
 
